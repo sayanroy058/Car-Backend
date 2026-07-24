@@ -1,27 +1,27 @@
-import { Router, type Request, type Response } from "express";
-import { getDb } from "../db";
+import { Router } from "express";
+import { getDb } from "../db.js";
 
 const router = Router();
 
 // GET /api/tickets
-router.get("/", (req: Request, res: Response) => {
+router.get("/", (req, res) => {
   const db = getDb();
-  const userId = req.query.userId as string | undefined;
-  const userEmail = req.query.email as string | undefined;
+  const userId = req.query.userId;
+  const userEmail = req.query.email;
 
-  let rows: Record<string, unknown>[];
+  let rows;
   if (userId) {
-    rows = db.prepare("SELECT * FROM tickets WHERE userId = ? OR email = (SELECT email FROM users WHERE id = ?) ORDER BY createdAt DESC").all(userId, userId) as Record<string, unknown>[];
+    rows = db.prepare("SELECT * FROM tickets WHERE userId = ? OR email = (SELECT email FROM users WHERE id = ?) ORDER BY createdAt DESC").all(userId, userId);
   } else if (userEmail) {
-    rows = db.prepare("SELECT * FROM tickets WHERE email = ? ORDER BY createdAt DESC").all(userEmail) as Record<string, unknown>[];
+    rows = db.prepare("SELECT * FROM tickets WHERE email = ? ORDER BY createdAt DESC").all(userEmail);
   } else {
-    rows = db.prepare("SELECT * FROM tickets ORDER BY createdAt DESC").all() as Record<string, unknown>[];
+    rows = db.prepare("SELECT * FROM tickets ORDER BY createdAt DESC").all();
   }
   res.json({ tickets: rows });
 });
 
 // POST /api/tickets
-router.post("/", (req: Request, res: Response) => {
+router.post("/", (req, res) => {
   const db = getDb();
   const id = `t-${Date.now()}`;
   const { userId, name, email, subject, category, message } = req.body;
@@ -40,7 +40,7 @@ router.post("/", (req: Request, res: Response) => {
 });
 
 // PATCH /api/tickets/:id
-router.patch("/:id", (req: Request, res: Response) => {
+router.patch("/:id", (req, res) => {
   const db = getDb();
   const existing = db.prepare("SELECT * FROM tickets WHERE id = ?").get(req.params.id);
   if (!existing) {
@@ -49,8 +49,8 @@ router.patch("/:id", (req: Request, res: Response) => {
   }
 
   const { status, subject, category, message } = req.body;
-  const sets: string[] = [];
-  const params: unknown[] = [];
+  const sets = [];
+  const params = [];
 
   if (status) { sets.push("status = ?"); params.push(status); }
   if (subject) { sets.push("subject = ?"); params.push(subject); }

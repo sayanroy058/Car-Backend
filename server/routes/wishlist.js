@@ -1,24 +1,24 @@
-import { Router, type Request, type Response } from "express";
-import { getDb } from "../db";
+import { Router } from "express";
+import { getDb } from "../db.js";
 
 const router = Router();
 
 // GET /api/wishlist?userId=...
-router.get("/", (req: Request, res: Response) => {
+router.get("/", (req, res) => {
   const db = getDb();
-  const userId = req.query.userId as string;
+  const userId = req.query.userId;
   if (!userId) {
     res.status(400).json({ error: "userId query parameter required" });
     return;
   }
-  const rows = db.prepare("SELECT listingId FROM wishlist WHERE userId = ?").all(userId) as { listingId: string }[];
+  const rows = db.prepare("SELECT listingId FROM wishlist WHERE userId = ?").all(userId);
   res.json({ wishlist: rows.map((r) => r.listingId) });
 });
 
 // POST /api/wishlist/:listingId
-router.post("/:listingId", (req: Request, res: Response) => {
+router.post("/:listingId", (req, res) => {
   const db = getDb();
-  const userId = req.body.userId as string;
+  const userId = req.body.userId;
   if (!userId) {
     res.status(400).json({ error: "userId required in body" });
     return;

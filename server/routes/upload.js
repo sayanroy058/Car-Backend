@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from "express";
+import { Router } from "express";
 import multer from "multer";
 import path from "node:path";
 import fs from "node:fs";
@@ -23,11 +23,7 @@ const storage = multer.diskStorage({
   },
 });
 
-const fileFilter = (
-  _req: Request,
-  file: Express.Multer.File,
-  cb: multer.FileFilterCallback,
-) => {
+const fileFilter = (_req, file, cb) => {
   const allowed = [".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"];
   const ext = path.extname(file.originalname).toLowerCase();
   if (allowed.includes(ext)) {
@@ -48,7 +44,7 @@ const router = Router();
 // POST /api/upload — upload one or more images
 router.post(
   "/",
-  (req: Request, res: Response, next) => {
+  (req, res, next) => {
     upload.array("images", 20)(req, res, (err) => {
       if (err) {
         if (err instanceof multer.MulterError) {
@@ -63,8 +59,8 @@ router.post(
       next();
     });
   },
-  (req: Request, res: Response) => {
-    const files = req.files as Express.Multer.File[] | undefined;
+  (req, res) => {
+    const files = req.files;
     if (!files || files.length === 0) {
       res.status(400).json({ error: "No image files uploaded" });
       return;

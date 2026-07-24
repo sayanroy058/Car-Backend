@@ -1,31 +1,31 @@
-import { Router, type Request, type Response } from "express";
-import { getDb } from "../db";
+import { Router } from "express";
+import { getDb } from "../db.js";
 
 const router = Router();
 
-function rowToListing(row: Record<string, unknown>) {
+function rowToListing(row) {
   return {
     ...row,
-    images: JSON.parse(row.images as string),
-    pricing: row.pricing ? JSON.parse(row.pricing as string) : undefined,
-    featured: !!(row.featured as number),
+    images: JSON.parse(row.images),
+    pricing: row.pricing ? JSON.parse(row.pricing) : undefined,
+    featured: !!row.featured,
   };
 }
 
 // GET /api/listings
-router.get("/", (req: Request, res: Response) => {
+router.get("/", (_req, res) => {
   const db = getDb();
-  const rows = db.prepare("SELECT * FROM listings ORDER BY createdAt DESC").all() as Record<string, unknown>[];
+  const rows = db.prepare("SELECT * FROM listings ORDER BY createdAt DESC").all();
   res.json({ listings: rows.map(rowToListing) });
 });
 
 // GET /api/listings/search
-router.get("/search", (req: Request, res: Response) => {
+router.get("/search", (req, res) => {
   const db = getDb();
   const { q, brand, body, fuel, trans, own, state, priceMin, priceMax, yearMin, yearMax, kmMin, kmMax, sort } = req.query;
 
   let query = "SELECT * FROM listings WHERE (status = 'listed' OR status = 'approved')";
-  const params: unknown[] = [];
+  const params = [];
 
   if (q && typeof q === "string") {
     query += " AND (brand || ' ' || model || ' ' || variant LIKE ?)";
@@ -80,20 +80,20 @@ router.get("/search", (req: Request, res: Response) => {
   if (kmMin) { query += " AND kmDriven >= ?"; params.push(Number(kmMin)); }
   if (kmMax) { query += " AND kmDriven <= ?"; params.push(Number(kmMax)); }
 
-  const sortParam = (sort as string) ?? "newest";
+  const sortParam = sort ?? "newest";
   if (sortParam === "price_low") query += " ORDER BY expectedPrice ASC";
   else if (sortParam === "price_high") query += " ORDER BY expectedPrice DESC";
   else if (sortParam === "km_low") query += " ORDER BY kmDriven ASC";
   else query += " ORDER BY createdAt DESC";
 
-  const rows = db.prepare(query).all(...params) as Record<string, unknown>[];
+  const rows = db.prepare(query).all(...params);
   res.json({ listings: rows.map(rowToListing) });
 });
 
 // GET /api/listings/:id
-router.get("/:id", (req: Request, res: Response) => {
+router.get("/:id", (req, res) => {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(req.params.id) as Record<string, unknown> | undefined;
+  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(req.params.id);
   if (!row) {
     res.status(404).json({ error: "Listing not found" });
     return;
@@ -102,9 +102,9 @@ router.get("/:id", (req: Request, res: Response) => {
 });
 
 // GET /api/listings/:id/similar
-router.get("/:id/similar", (req: Request, res: Response) => {
+router.get("/:id/similar", (req, res) => {
   const db = getDb();
-  const target = db.prepare("SELECT bodyType FROM listings WHERE id = ?").get(req.params.id) as { bodyType?: string } | undefined;
+  const target = db.prepare("SELECT bodyType FROM listings WHERE id = ?").get(req.params.id);
   if (!target) {
     res.json({ listings: [] });
     return;
@@ -112,13 +112,13 @@ router.get("/:id/similar", (req: Request, res: Response) => {
 
   const rows = db.prepare(
     "SELECT * FROM listings WHERE id != ? AND bodyType = ? LIMIT 3"
-  ).all(req.params.id, target.bodyType) as Record<string, unknown>[];
+  ).all(req.params.id, target.bodyType);
 
   res.json({ listings: rows.map(rowToListing) });
 });
 
 // POST /api/listings
-router.post("/", (req: Request, res: Response) => {
+router.post("/", (req, res) => {
   const db = getDb();
   const id = `l-${Date.now()}`;
   const createdAt = Date.now();
@@ -146,14 +146,14 @@ router.post("/", (req: Request, res: Response) => {
     images, "pending_review", pricing, createdAt, 0, 0,
   );
 
-  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id) as Record<string, unknown>;
+  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(id);
   res.status(201).json({ listing: rowToListing(row) });
 });
 
 // PATCH /api/listings/:id
-router.patch("/:id", (req: Request, res: Response) => {
+router.patch("/:id", (req, res) => {
   const db = getDb();
-  const existing = db.prepare("SELECT * FROM listings WHERE id = ?").get(req.params.id) as Record<string, unknown> | undefined;
+  const existing = db.prepare("SELECT * FROM listings WHERE id = ?").get(req.params.id);
   if (!existing) {
     res.status(404).json({ error: "Listing not found" });
     return;
@@ -168,8 +168,8 @@ router.patch("/:id", (req: Request, res: Response) => {
     "status",
   ];
 
-  const sets: string[] = [];
-  const params: unknown[] = [];
+  const sets = [];
+  const params = [];
 
   for (const f of fields) {
     if (req.body[f] !== undefined) {
@@ -199,7 +199,7 @@ router.patch("/:id", (req: Request, res: Response) => {
   params.push(req.params.id);
   db.prepare(`UPDATE listings SET ${sets.join(", ")} WHERE id = ?`).run(...params);
 
-  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(req.params.id) as Record<string, unknown>;
+  const row = db.prepare("SELECT * FROM listings WHERE id = ?").get(req.params.id);
   res.json({ listing: rowToListing(row) });
 });
 

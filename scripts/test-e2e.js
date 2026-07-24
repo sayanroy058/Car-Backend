@@ -1,7 +1,7 @@
 // End-to-end test: register, login, upload, create listing, verify DB
-// Run: npx tsx scripts/test-e2e.ts
+// Run: node scripts/test-e2e.js
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,11 +23,11 @@ const TEST_IMG2 = path.join(UPLOADS, "test-e2e-car2.jpg");
 fs.writeFileSync(TEST_IMG1, MINIMAL_JPEG);
 fs.writeFileSync(TEST_IMG2, MINIMAL_JPEG);
 
-let server: ChildProcess | null = null;
+let server = null;
 let passed = 0;
 let failed = 0;
 
-async function check(pass: boolean, label: string) {
+async function check(pass, label) {
   if (pass) {
     console.log(`  ✅ ${label}`);
     passed++;
@@ -37,14 +37,11 @@ async function check(pass: boolean, label: string) {
   }
 }
 
-async function fetchAPI(
-  endpoint: string,
-  options: RequestInit = {},
-): Promise<{ status: number; data: unknown }> {
+async function fetchAPI(endpoint, options = {}) {
   try {
     const res = await fetch(`http://localhost:3001${endpoint}`, {
       ...options,
-      headers: { "Content-Type": "application/json", ...(options.headers as Record<string, string>) },
+      headers: { "Content-Type": "application/json", ...(options.headers ?? {}) },
     });
     const data = await res.json().catch(() => null);
     return { status: res.status, data };
@@ -61,7 +58,7 @@ for (const p of dbPaths) {
   try { fs.unlinkSync(path.join(ROOT, p)); } catch { /* ignore */ }
 }
 
-server = spawn("npx", ["tsx", "server/server.ts"], {
+server = spawn("node", ["server/server.js"], {
   cwd: ROOT,
   stdio: "pipe",
   env: { ...process.env, PORT: "3001" },
@@ -109,7 +106,7 @@ const regResp = await fetchAPI("/api/auth/register", {
   }),
 });
 await check(regResp.status === 201, "Seller registered (201)");
-const sellerId = (regResp.data as Record<string, unknown>)?.user?.id as string;
+const sellerId = regResp.data?.user?.id;
 await check(!!sellerId, `Seller ID: ${sellerId}`);
 
 console.log("\n📋 TEST 3: Login as seller");
@@ -118,7 +115,7 @@ const loginResp = await fetchAPI("/api/auth/login", {
   body: JSON.stringify({ email: "rahul.seller@example.com", password: "seller123" }),
 });
 await check(loginResp.status === 200, "Login successful");
-const sellerToken = (loginResp.data as Record<string, unknown>)?.token as string;
+const sellerToken = loginResp.data?.token;
 await check(!!sellerToken, `Token received: ${sellerToken?.slice(0, 20)}...`);
 
 console.log("\n📋 TEST 4: Get seller profile (auth/me)");
@@ -127,7 +124,7 @@ const meResp = await fetchAPI("/api/auth/me", {
 });
 await check(meResp.status === 200, "Auth/me returns 200");
 await check(
-  (meResp.data as Record<string, unknown>)?.user?.name === "Rahul Sharma",
+  meResp.data?.user?.name === "Rahul Sharma",
   "Profile shows correct name",
 );
 
@@ -141,7 +138,7 @@ const uploadResp = await fetch("http://localhost:3001/api/upload", {
   body: formData,
 });
 const uploadData = await uploadResp.json();
-const uploadedUrls = uploadData.urls as string[];
+const uploadedUrls = uploadData.urls;
 await check(uploadResp.status === 201, "Upload returns 201");
 await check(uploadedUrls?.length === 2, `2 images uploaded: ${uploadedUrls?.join(", ")}`);
 
@@ -187,23 +184,23 @@ const listingResp = await fetchAPI("/api/listings", {
   }),
 });
 await check(listingResp.status === 201, "Listing created (201)");
-const listing = (listingResp.data as Record<string, unknown>)?.listing as Record<string, unknown>;
-const listingId = listing?.id as string;
+const listing = listingResp.data?.listing;
+const listingId = listing?.id;
 await check(!!listingId, `Listing ID: ${listingId}`);
 await check(listing?.brand === "Honda", `Brand: ${listing?.brand}`);
 await check(listing?.status === "pending_review", `Status: ${listing?.status}`);
-await check((listing?.images as string[])?.length === 2, "Listing has 2 images");
+await check(listing?.images?.length === 2, "Listing has 2 images");
 
 console.log("\n📋 TEST 7: Get listing by ID");
 const getResp = await fetchAPI(`/api/listings/${listingId}`);
 await check(getResp.status === 200, "GET listing returns 200");
-const getListing = (getResp.data as Record<string, unknown>)?.listing as Record<string, unknown>;
+const getListing = getResp.data?.listing;
 await check(getListing?.sellerName === "Rahul Sharma", "Seller name correct");
 await check(getListing?.expectedPrice === 1250000, "Price correct");
 
 console.log("\n📋 TEST 8: Search listings");
 const searchResp = await fetchAPI("/api/listings/search?brand=Honda");
-const searchListings = (searchResp.data as Record<string, unknown>)?.listings as Array<Record<string, unknown>>;
+const searchListings = searchResp.data?.listings;
 await check(searchResp.status === 200, "Search returns 200");
 await check(
   (searchListings?.length ?? 0) >= 1,
@@ -212,7 +209,7 @@ await check(
 
 console.log("\n📋 TEST 9: Total listings count");
 const allResp = await fetchAPI("/api/listings");
-const allListings = (allResp.data as Record<string, unknown>)?.listings as Array<Record<string, unknown>>;
+const allListings = allResp.data?.listings;
 const totalListings = allListings?.length ?? 0;
 await check(totalListings >= 15, `Total listings: ${totalListings} (expect >=15: 14 seed + 1 created)`);
 
@@ -240,9 +237,9 @@ const adminResp = await fetchAPI("/api/auth/login", {
   body: JSON.stringify({ email: "admin@drivehub.io", password: "admin" }),
 });
 await check(adminResp.status === 200, "Admin login successful");
-const adminUser = (adminResp.data as Record<string, unknown>)?.user as Record<string, unknown>;
+const adminUser = adminResp.data?.user;
 await check(adminUser?.role === "admin", `Admin role: ${adminUser?.role}`);
-const adminToken = (adminResp.data as Record<string, unknown>)?.token as string;
+const adminToken = adminResp.data?.token;
 
 console.log("\n📋 TEST 13: Admin creates listing directly as 'listed'");
 const adminListingResp = await fetchAPI("/api/listings", {
@@ -286,17 +283,17 @@ const adminListingResp = await fetchAPI("/api/listings", {
   }),
 });
 await check(adminListingResp.status === 201, "Admin listing created (201)");
-const adminListing = (adminListingResp.data as Record<string, unknown>)?.listing as Record<string, unknown>;
+const adminListing = adminListingResp.data?.listing;
 await check(adminListing?.brand === "Maruti Suzuki", "Correct brand");
 await check(adminListing?.status === "pending_review", `Status: ${adminListing?.status}`);
 await check(
-  (adminListing?.images as string[])?.length === 2,
+  adminListing?.images?.length === 2,
   "Admin listing has 2 images",
 );
 
 console.log("\n📋 TEST 14: Final DB state");
 const finalResp = await fetchAPI("/api/listings");
-const finalListings = (finalResp.data as Record<string, unknown>)?.listings as Array<Record<string, unknown>>;
+const finalListings = finalResp.data?.listings;
 const finalTotal = finalListings?.length ?? 0;
 await check(finalTotal >= 16, `Final total: ${finalTotal} listings (expect >=16)`);
 
@@ -304,7 +301,7 @@ await check(finalTotal >= 16, `Final total: ${finalTotal} listings (expect >=16)
 console.log("\n📋 Listing summary:");
 for (const l of finalListings || []) {
   console.log(
-    `  ${l.id} | ${l.brand} ${l.model} | ${l.status} | ${(l.images as string[])?.length ?? 0} imgs | ${(l.images as string[])?.[0]?.slice(0, 40)}`,
+    `  ${l.id} | ${l.brand} ${l.model} | ${l.status} | ${l.images?.length ?? 0} imgs | ${l.images?.[0]?.slice(0, 40)}`,
   );
 }
 

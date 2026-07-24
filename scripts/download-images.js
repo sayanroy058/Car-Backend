@@ -1,5 +1,5 @@
 // Download car images from Unsplash and save to server/uploads/
-// Run: npx tsx scripts/download-images.ts
+// Run: node scripts/download-images.js
 
 import fs from "node:fs";
 import path from "node:path";
@@ -15,7 +15,7 @@ if (!fs.existsSync(UPLOADS)) {
 
 // Real Unsplash photo URLs for each car model (800x600, free to use)
 // Each car gets 10 images — using real car photos from Unsplash collections
-const CAR_IMAGES: Record<string, string[]> = {
+const CAR_IMAGES = {
   "tesla-model3": [
     "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800&q=80",
     "https://images.unsplash.com/photo-1536700503339-1e4b06520771?w=800&q=80",
@@ -200,7 +200,7 @@ const FALLBACK_IMAGES = [
   "https://images.unsplash.com/photo-1502877338535-766e1452684a?w=800&q=80",
 ];
 
-async function downloadImage(url: string, filepath: string): Promise<boolean> {
+async function downloadImage(url, filepath) {
   if (fs.existsSync(filepath)) {
     console.log(`  ✓ (cached) ${path.basename(filepath)}`);
     return true;
@@ -213,7 +213,7 @@ async function downloadImage(url: string, filepath: string): Promise<boolean> {
     console.log(`  ✓ ${path.basename(filepath)} (${(buffer.length / 1024).toFixed(0)} KB)`);
     return true;
   } catch (err) {
-    console.log(`  ✗ ${path.basename(filepath)} - ${(err as Error).message}`);
+    console.log(`  ✗ ${path.basename(filepath)} - ${err.message}`);
     return false;
   }
 }

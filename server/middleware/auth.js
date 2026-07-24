@@ -1,14 +1,8 @@
-import { type Request, type Response, type NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "drivehub-dev-secret-change-in-production";
 
-export interface AuthRequest extends Request {
-  userId?: string;
-  userRole?: string;
-}
-
-export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+export function requireAuth(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
     res.status(401).json({ error: "Not authenticated" });
@@ -17,7 +11,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
 
   const token = header.slice(7);
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { id: string; email: string; role: string };
+    const payload = jwt.verify(token, JWT_SECRET);
     req.userId = payload.id;
     req.userRole = payload.role;
     next();
@@ -27,15 +21,11 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   }
 }
 
-export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunction) {
+export function optionalAuth(req, _res, next) {
   const header = req.headers.authorization;
   if (header?.startsWith("Bearer ")) {
     try {
-      const payload = jwt.verify(header.slice(7), JWT_SECRET) as {
-        id: string;
-        email: string;
-        role: string;
-      };
+      const payload = jwt.verify(header.slice(7), JWT_SECRET);
       req.userId = payload.id;
       req.userRole = payload.role;
     } catch {

@@ -1,20 +1,20 @@
-import { Router, type Request, type Response } from "express";
-import { getDb } from "../db";
+import { Router } from "express";
+import { getDb } from "../db.js";
 
 const router = Router();
 
 // GET /api/offers
-router.get("/", (req: Request, res: Response) => {
+router.get("/", (req, res) => {
   const db = getDb();
-  const listingId = req.query.listingId as string | undefined;
+  const listingId = req.query.listingId;
   const rows = listingId
-    ? (db.prepare("SELECT * FROM offers WHERE listingId = ? ORDER BY createdAt DESC").all(listingId) as Record<string, unknown>[])
-    : (db.prepare("SELECT * FROM offers ORDER BY createdAt DESC").all() as Record<string, unknown>[]);
+    ? db.prepare("SELECT * FROM offers WHERE listingId = ? ORDER BY createdAt DESC").all(listingId)
+    : db.prepare("SELECT * FROM offers ORDER BY createdAt DESC").all();
   res.json({ offers: rows });
 });
 
 // POST /api/offers
-router.post("/", (req: Request, res: Response) => {
+router.post("/", (req, res) => {
   const db = getDb();
   const id = `o-${Date.now()}`;
   const { listingId, buyerId, buyerName, amount, message } = req.body;
@@ -33,7 +33,7 @@ router.post("/", (req: Request, res: Response) => {
 });
 
 // PATCH /api/offers/:id
-router.patch("/:id", (req: Request, res: Response) => {
+router.patch("/:id", (req, res) => {
   const db = getDb();
   const existing = db.prepare("SELECT * FROM offers WHERE id = ?").get(req.params.id);
   if (!existing) {
@@ -42,8 +42,8 @@ router.patch("/:id", (req: Request, res: Response) => {
   }
 
   const { state, counterAmount } = req.body;
-  const sets: string[] = [];
-  const params: unknown[] = [];
+  const sets = [];
+  const params = [];
 
   if (state) { sets.push("state = ?"); params.push(state); }
   if (counterAmount !== undefined) { sets.push("counterAmount = ?"); params.push(counterAmount); }

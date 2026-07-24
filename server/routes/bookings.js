@@ -1,20 +1,20 @@
-import { Router, type Request, type Response } from "express";
-import { getDb } from "../db";
+import { Router } from "express";
+import { getDb } from "../db.js";
 
 const router = Router();
 
 // GET /api/bookings
-router.get("/", (req: Request, res: Response) => {
+router.get("/", (req, res) => {
   const db = getDb();
-  const userId = req.query.userId as string | undefined;
+  const userId = req.query.userId;
   const rows = userId
-    ? (db.prepare("SELECT * FROM bookings WHERE userId = ? ORDER BY createdAt DESC").all(userId) as Record<string, unknown>[])
-    : (db.prepare("SELECT * FROM bookings ORDER BY createdAt DESC").all() as Record<string, unknown>[]);
+    ? db.prepare("SELECT * FROM bookings WHERE userId = ? ORDER BY createdAt DESC").all(userId)
+    : db.prepare("SELECT * FROM bookings ORDER BY createdAt DESC").all();
   res.json({ bookings: rows });
 });
 
 // POST /api/bookings
-router.post("/", (req: Request, res: Response) => {
+router.post("/", (req, res) => {
   const db = getDb();
   const id = `b-${Date.now()}`;
   const { listingId, userId, buyerName, buyerEmail, buyerPhone, type, amount, reserveFee, tenure, downPayment, scheduledDate, city } = req.body;
@@ -38,7 +38,7 @@ router.post("/", (req: Request, res: Response) => {
 });
 
 // PATCH /api/bookings/:id
-router.patch("/:id", (req: Request, res: Response) => {
+router.patch("/:id", (req, res) => {
   const db = getDb();
   const existing = db.prepare("SELECT * FROM bookings WHERE id = ?").get(req.params.id);
   if (!existing) {
@@ -47,8 +47,8 @@ router.patch("/:id", (req: Request, res: Response) => {
   }
 
   const { status, scheduledDate, city } = req.body;
-  const sets: string[] = [];
-  const params: unknown[] = [];
+  const sets = [];
+  const params = [];
 
   if (status) { sets.push("status = ?"); params.push(status); }
   if (scheduledDate) { sets.push("scheduledDate = ?"); params.push(scheduledDate); }

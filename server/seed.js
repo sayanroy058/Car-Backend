@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { getDb } from "./db";
+import { getDb } from "./db.js";
 
 const SAMPLE_IMAGES = [
   "/uploads/fallback-0.jpg",
@@ -15,7 +15,7 @@ const SAMPLE_IMAGES = [
 ];
 
 // Car-specific local image paths (downloaded from Unsplash to server/uploads/)
-const CAR_SPECIFIC_IMAGES: Record<string, string[]> = {
+const CAR_SPECIFIC_IMAGES = {
   "Tesla_Model 3": [
     "/uploads/tesla-model3-0.jpg", "/uploads/tesla-model3-1.jpg", "/uploads/tesla-model3-2.jpg",
     "/uploads/tesla-model3-3.jpg", "/uploads/tesla-model3-4.jpg", "/uploads/tesla-model3-5.jpg",
@@ -102,7 +102,7 @@ const CAR_SPECIFIC_IMAGES: Record<string, string[]> = {
   ],
 };
 
-function getCarImages(brand: string, model: string): string[] {
+function getCarImages(brand, model) {
   const key = `${brand}_${model}`;
   return CAR_SPECIFIC_IMAGES[key] ?? SAMPLE_IMAGES;
 }
@@ -139,11 +139,11 @@ const SELLERS = [
   "Vikram Singh",
 ];
 
-function rand<T>(arr: T[]): T {
+function rand(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function randInt(min: number, max: number): number {
+function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
@@ -293,9 +293,7 @@ const CARS = [
 export function seed() {
   const db = getDb();
 
-  const count = db.prepare("SELECT COUNT(*) as c FROM listings").get() as {
-    c: number;
-  };
+  const count = db.prepare("SELECT COUNT(*) as c FROM listings").get();
   if (count.c > 0) return; // already seeded
 
   // ── Seed admin and agent users ──
@@ -580,10 +578,10 @@ export function seed() {
   console.log("✅ Database seeded: admin, agent, 14 cars, tickets, offers, reviews");
 }
 
-// Run directly via: npx tsx server/seed.ts
+// Run directly via: node server/seed.js
 // Uses process.argv to check if this file is the main entry point
 const isMain = process.argv[1] &&
-  (process.argv[1].endsWith("/seed.ts") || process.argv[1].endsWith("\\seed.ts"));
+  (process.argv[1].endsWith("/seed.js") || process.argv[1].endsWith("\\seed.js"));
 if (isMain) {
   console.log("Seeding database...");
   seed();

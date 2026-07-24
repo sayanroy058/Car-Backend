@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type Database from "better-sqlite3";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, "migrations");
@@ -11,7 +10,7 @@ const MIGRATIONS_DIR = path.join(__dirname, "migrations");
  * Tracks applied migrations in a `_migrations` table.
  * Pass the raw Database instance (before any schema init).
  */
-export function runMigrations(db: Database): void {
+export function runMigrations(db) {
   // Ensure tracking table exists
   db.exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
@@ -20,7 +19,7 @@ export function runMigrations(db: Database): void {
     );
   `);
 
-  let files: string[];
+  let files;
   try {
     files = fs
       .readdirSync(MIGRATIONS_DIR)
@@ -34,9 +33,7 @@ export function runMigrations(db: Database): void {
   if (files.length === 0) return;
 
   const applied = new Set(
-    (db.prepare("SELECT name FROM _migrations").all() as { name: string }[]).map(
-      (r) => r.name,
-    ),
+    db.prepare("SELECT name FROM _migrations").all().map((r) => r.name),
   );
 
   let ran = 0;
@@ -54,7 +51,7 @@ export function runMigrations(db: Database): void {
       );
       ran++;
     } catch (err) {
-      console.error(`❌ Migration ${file} failed:`, (err as Error).message);
+      console.error(`❌ Migration ${file} failed:`, err.message);
       throw err;
     }
   }
@@ -66,10 +63,10 @@ export function runMigrations(db: Database): void {
   }
 }
 
-// ── Standalone CLI: npx tsx server/migrate.ts ──
+// ── Standalone CLI: node server/migrate.js ──
 // Uses process.argv to check if this file is the main entry point
 const isMain = process.argv[1] &&
-  (process.argv[1].endsWith("/migrate.ts") || process.argv[1].endsWith("\\migrate.ts"));
+  (process.argv[1].endsWith("/migrate.js") || process.argv[1].endsWith("\\migrate.js"));
 if (isMain) {
   (async () => {
     const Database = (await import("better-sqlite3")).default;

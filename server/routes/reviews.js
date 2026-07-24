@@ -1,23 +1,23 @@
-import { Router, type Response } from "express";
-import { getDb } from "../db";
-import { requireAuth, type AuthRequest } from "../middleware/auth";
+import { Router } from "express";
+import { getDb } from "../db.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
 // GET /api/reviews?listingId=... — public
-router.get("/", (req: AuthRequest, res: Response) => {
+router.get("/", (req, res) => {
   const db = getDb();
-  const listingId = req.query.listingId as string | undefined;
+  const listingId = req.query.listingId;
   if (!listingId) {
     res.status(400).json({ error: "listingId query parameter required" });
     return;
   }
-  const rows = db.prepare("SELECT * FROM reviews WHERE listingId = ? ORDER BY createdAt DESC").all(listingId) as Record<string, unknown>[];
+  const rows = db.prepare("SELECT * FROM reviews WHERE listingId = ? ORDER BY createdAt DESC").all(listingId);
   res.json({ reviews: rows });
 });
 
 // POST /api/reviews — protected
-router.post("/", requireAuth, (req: AuthRequest, res: Response) => {
+router.post("/", requireAuth, (req, res) => {
   const db = getDb();
   const id = `r-${Date.now()}`;
   const { listingId, name, rating, title, body } = req.body;

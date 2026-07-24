@@ -1,13 +1,13 @@
-import { Router, type Request, type Response } from "express";
-import { getDb } from "../db";
+import { Router } from "express";
+import { getDb } from "../db.js";
 
 const router = Router();
 
 // GET /api/conversations
-router.get("/", (req: Request, res: Response) => {
+router.get("/", (req, res) => {
   const db = getDb();
   const all = req.query.all === "true";
-  const userId = req.query.userId as string | undefined;
+  const userId = req.query.userId;
 
   if (!all && !userId) {
     res.status(400).json({ error: "userId query parameter required" });
@@ -15,12 +15,12 @@ router.get("/", (req: Request, res: Response) => {
   }
 
   const rows = all
-    ? (db.prepare("SELECT * FROM conversations ORDER BY createdAt DESC").all() as Record<string, unknown>[])
-    : (db.prepare("SELECT * FROM conversations WHERE buyerId = ? ORDER BY createdAt DESC").all(userId) as Record<string, unknown>[]);
+    ? db.prepare("SELECT * FROM conversations ORDER BY createdAt DESC").all()
+    : db.prepare("SELECT * FROM conversations WHERE buyerId = ? ORDER BY createdAt DESC").all(userId);
 
   const conversations = rows.map((c) => {
-    const messages = db.prepare("SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt ASC").all(c.id) as Record<string, unknown>[];
-    const lastReadAt = c.lastReadAt ? JSON.parse(c.lastReadAt as string) : undefined;
+    const messages = db.prepare("SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt ASC").all(c.id);
+    const lastReadAt = c.lastReadAt ? JSON.parse(c.lastReadAt) : undefined;
     return { ...c, messages, lastReadAt };
   });
 
@@ -28,21 +28,21 @@ router.get("/", (req: Request, res: Response) => {
 });
 
 // GET /api/conversations/:id
-router.get("/:id", (req: Request, res: Response) => {
+router.get("/:id", (req, res) => {
   const db = getDb();
-  const c = db.prepare("SELECT * FROM conversations WHERE id = ?").get(req.params.id) as Record<string, unknown> | undefined;
+  const c = db.prepare("SELECT * FROM conversations WHERE id = ?").get(req.params.id);
   if (!c) {
     res.status(404).json({ error: "Conversation not found" });
     return;
   }
 
-  const messages = db.prepare("SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt ASC").all(c.id) as Record<string, unknown>[];
-  const lastReadAt = c.lastReadAt ? JSON.parse(c.lastReadAt as string) : undefined;
+  const messages = db.prepare("SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt ASC").all(c.id);
+  const lastReadAt = c.lastReadAt ? JSON.parse(c.lastReadAt) : undefined;
   res.json({ conversation: { ...c, messages, lastReadAt } });
 });
 
 // POST /api/conversations
-router.post("/", (req: Request, res: Response) => {
+router.post("/", (req, res) => {
   const db = getDb();
   const { listingId, buyerId, sellerId, sellerName, listingTitle } = req.body;
 
@@ -54,11 +54,11 @@ router.post("/", (req: Request, res: Response) => {
   // Check for existing conversation
   const existing = db.prepare(
     "SELECT * FROM conversations WHERE listingId = ? AND buyerId = ?"
-  ).get(listingId, buyerId) as Record<string, unknown> | undefined;
+  ).get(listingId, buyerId);
 
   if (existing) {
-    const messages = db.prepare("SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt ASC").all(existing.id) as Record<string, unknown>[];
-    res.json({ conversation: { ...existing, messages, lastReadAt: existing.lastReadAt ? JSON.parse(existing.lastReadAt as string) : undefined } });
+    const messages = db.prepare("SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt ASC").all(existing.id);
+    res.json({ conversation: { ...existing, messages, lastReadAt: existing.lastReadAt ? JSON.parse(existing.lastReadAt) : undefined } });
     return;
   }
 
@@ -67,12 +67,12 @@ router.post("/", (req: Request, res: Response) => {
     "INSERT INTO conversations (id, listingId, buyerId, sellerId, sellerName, listingTitle, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
   ).run(id, listingId, buyerId, sellerId, sellerName ?? "", listingTitle ?? "", Date.now());
 
-  const c = db.prepare("SELECT * FROM conversations WHERE id = ?").get(id) as Record<string, unknown>;
+  const c = db.prepare("SELECT * FROM conversations WHERE id = ?").get(id);
   res.status(201).json({ conversation: { ...c, messages: [] } });
 });
 
 // POST /api/conversations/:id/messages
-router.post("/:id/messages", (req: Request, res: Response) => {
+router.post("/:id/messages", (req, res) => {
   const db = getDb();
   const conversationId = req.params.id;
   const { senderId, senderName, text, mine } = req.body;
@@ -93,18 +93,18 @@ router.post("/:id/messages", (req: Request, res: Response) => {
 });
 
 // POST /api/conversations/:id/read
-router.post("/:id/read", (req: Request, res: Response) => {
+router.post("/:id/read", (req, res) => {
   const db = getDb();
   const conversationId = req.params.id;
-  const userId = req.body.userId as string;
+  const userId = req.body.userId;
 
-  const c = db.prepare("SELECT * FROM conversations WHERE id = ?").get(conversationId) as Record<string, unknown> | undefined;
+  const c = db.prepare("SELECT * FROM conversations WHERE id = ?").get(conversationId);
   if (!c) {
     res.status(404).json({ error: "Conversation not found" });
     return;
   }
 
-  const lastReadAt = c.lastReadAt ? JSON.parse(c.lastReadAt as string) : {};
+  const lastReadAt = c.lastReadAt ? JSON.parse(c.lastReadAt) : {};
   lastReadAt[userId] = Date.now();
 
   db.prepare("UPDATE conversations SET lastReadAt = ? WHERE id = ?").run(JSON.stringify(lastReadAt), conversationId);
