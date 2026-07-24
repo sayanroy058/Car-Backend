@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
     "dev:server": "tsx watch server/server.ts",
     "server": "tsx server/server.ts",
     "migrate": "tsx server/migrate.ts",
