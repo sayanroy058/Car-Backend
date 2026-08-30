@@ -285,13 +285,199 @@ const adminListingResp = await fetchAPI("/api/listings", {
 await check(adminListingResp.status === 201, "Admin listing created (201)");
 const adminListing = adminListingResp.data?.listing;
 await check(adminListing?.brand === "Maruti Suzuki", "Correct brand");
+// Create always yields pending_review, even for an admin — publishing is a
+// separate, explicitly authorised PATCH.
 await check(adminListing?.status === "pending_review", `Status: ${adminListing?.status}`);
+await check(adminListing?.images?.length === 2, "Admin listing has 2 images");
 await check(
-  adminListing?.images?.length === 2,
-  "Admin listing has 2 images",
+  adminListing?.sellerId === "admin-1",
+  `Seller taken from the token, not the body: ${adminListing?.sellerId}`,
 );
 
-console.log("\n📋 TEST 14: Final DB state");
+console.log("\n📋 TEST 14: Auth is enforced on listing writes");
+// Previously POST/PATCH /api/listings sat behind optionalAuth, so anyone could
+// create a listing or flip another listing's status, pricing and featured flag.
+const anonCreate = await fetchAPI("/api/listings", {
+  method: "POST",
+  body: JSON.stringify({
+    brand: "Ghost",
+    model: "Unauthorised",
+    year: 2024,
+    fuelType: "Petrol",
+    transmission: "Manual",
+    expectedPrice: 1,
+  }),
+});
+await check(anonCreate.status === 401, `Anonymous create rejected (${anonCreate.status})`);
+
+const anonPatch = await fetchAPI(`/api/listings/${listingId}`, {
+  method: "PATCH",
+  body: JSON.stringify({ status: "listed" }),
+});
+await check(anonPatch.status === 401, `Anonymous patch rejected (${anonPatch.status})`);
+
+console.log("\n📋 TEST 15: Sellers cannot self-publish or self-promote");
+// A seller may edit their own listing's descriptive fields, but status, pricing,
+// featured and the paid "assured" placement are admin-only.
+const sellerSelfPublish = await fetchAPI(`/api/listings/${listingId}`, {
+  method: "PATCH",
+  headers: { Authorization: `Bearer ${sellerToken}` },
+  body: JSON.stringify({ status: "listed", featured: true, assuredUntil: Date.now() + 86400000 }),
+});
+await check(sellerSelfPublish.status === 200, "Seller patch accepted");
+await check(
+  sellerSelfPublish.data?.listing?.status === "pending_review",
+  `Status unchanged by seller: ${sellerSelfPublish.data?.listing?.status}`,
+);
+await check(sellerSelfPublish.data?.listing?.featured === false, "featured not set by seller");
+await check(
+  !sellerSelfPublish.data?.listing?.assuredUntil,
+  "assured placement not granted to seller",
+);
+
+const foreignPatch = await fetchAPI("/api/listings/seed-1", {
+  method: "PATCH",
+  headers: { Authorization: `Bearer ${sellerToken}` },
+  body: JSON.stringify({ description: "hijacked" }),
+});
+await check(
+  foreignPatch.status === 403,
+  `Editing another seller's listing rejected (${foreignPatch.status})`,
+);
+
+console.log("\n📋 TEST 16: Admin can publish and promote");
+const adminPublish = await fetchAPI(`/api/listings/${listingId}`, {
+  method: "PATCH",
+  headers: { Authorization: `Bearer ${adminToken}` },
+  body: JSON.stringify({
+    status: "listed",
+    assuredPlan: "assured-7",
+    assuredUntil: Date.now() + 7 * 86400000,
+    assuredPaymentId: "pay_test_123",
+  }),
+});
+await check(adminPublish.data?.listing?.status === "listed", "Admin set status to listed");
+await check(
+  (adminPublish.data?.listing?.assuredUntil ?? 0) > Date.now(),
+  "Admin granted assured placement",
+);
+
+console.log("\n📋 TEST 17: Promoted listings sort first in search");
+const promotedSearch = await fetchAPI("/api/listings/search?sort=price_low");
+await check(
+  promotedSearch.data?.listings?.[0]?.id === listingId,
+  `Promoted listing leads results (first: ${promotedSearch.data?.listings?.[0]?.id})`,
+);
+
+console.log("\n📋 TEST 18: Registration number is masked for other viewers");
+// The full number is PII: it can be used for public RTO lookups. Only the owning
+// seller and admins see it in full.
+const regPatch = await fetchAPI(`/api/listings/${listingId}`, {
+  method: "PATCH",
+  headers: { Authorization: `Bearer ${sellerToken}` },
+  body: JSON.stringify({ registrationNumber: "KA05MH1234" }),
+});
+await check(
+  regPatch.data?.listing?.registrationNumber === "KA05MH1234",
+  `Owner sees full number: ${regPatch.data?.listing?.registrationNumber}`,
+);
+
+const anonView = await fetchAPI(`/api/listings/${listingId}`);
+await check(
+  anonView.data?.listing?.registrationNumber === "KA05 •• 1234",
+  `Anonymous sees masked number: ${anonView.data?.listing?.registrationNumber}`,
+);
+
+const adminView = await fetchAPI(`/api/listings/${listingId}`, {
+  headers: { Authorization: `Bearer ${adminToken}` },
+});
+await check(
+  adminView.data?.listing?.registrationNumber === "KA05MH1234",
+  "Admin sees full number",
+);
+
+console.log("\n📋 TEST 19: Specification columns round-trip");
+const specPatch = await fetchAPI(`/api/listings/${listingId}`, {
+  method: "PATCH",
+  headers: { Authorization: `Bearer ${sellerToken}` },
+  body: JSON.stringify({
+    displacementCc: 1498,
+    maxPowerBhp: 119,
+    maxPowerRpm: 6600,
+    maxTorqueNm: 145,
+    maxTorqueRpm: 4300,
+    driveTrain: "FWD",
+    mileageKmpl: 18.4,
+    airbags: 6,
+    seating: 5,
+    bootSpaceL: 506,
+    fuelTankL: 40,
+    highlights: ["Sunroof", "Apple CarPlay"],
+  }),
+});
+const specced = specPatch.data?.listing;
+await check(specced?.displacementCc === 1498, `Displacement stored: ${specced?.displacementCc} cc`);
+await check(specced?.maxPowerBhp === 119, `Power stored: ${specced?.maxPowerBhp} bhp`);
+await check(specced?.driveTrain === "FWD", `Drivetrain stored: ${specced?.driveTrain}`);
+await check(specced?.airbags === 6, `Airbags stored: ${specced?.airbags}`);
+await check(specced?.bootSpaceL === 506, `Boot space stored: ${specced?.bootSpaceL} L`);
+await check(
+  Array.isArray(specced?.highlights) && specced.highlights.length === 2,
+  `Highlights stored: ${specced?.highlights?.join(", ")}`,
+);
+
+console.log("\n📋 TEST 20: Non-image uploads are rejected by content sniffing");
+// Extension and MIME type are client-controlled, so the file header is checked.
+const badForm = new FormData();
+badForm.append("images", new Blob(["#!/bin/sh\necho not an image"]), "payload.jpg");
+const badUpload = await fetch("http://localhost:3001/api/upload", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${sellerToken}` },
+  body: badForm,
+});
+await check(badUpload.status === 400, `Disguised non-image rejected (${badUpload.status})`);
+
+console.log("\n📋 TEST 21: Wishlist and saved searches are scoped to the caller");
+const wlAdd = await fetchAPI(`/api/wishlist/seed-1`, {
+  method: "POST",
+  headers: { Authorization: `Bearer ${sellerToken}` },
+});
+await check(wlAdd.data?.added === true, "Seller added seed-1 to wishlist");
+
+const wlSeller = await fetchAPI("/api/wishlist", {
+  headers: { Authorization: `Bearer ${sellerToken}` },
+});
+await check(wlSeller.data?.wishlist?.includes("seed-1"), "Seller sees their own wishlist");
+
+const wlAdmin = await fetchAPI("/api/wishlist", {
+  headers: { Authorization: `Bearer ${adminToken}` },
+});
+await check(
+  !wlAdmin.data?.wishlist?.includes("seed-1"),
+  "Admin does not see the seller's wishlist entries",
+);
+
+const wlAnon = await fetchAPI("/api/wishlist");
+await check(wlAnon.status === 401, `Anonymous wishlist rejected (${wlAnon.status})`);
+
+const ssCreate = await fetchAPI("/api/saved-searches", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${sellerToken}` },
+  body: JSON.stringify({ name: "Hondas under 15L", filters: { brand: ["Honda"] } }),
+});
+await check(ssCreate.status === 201, "Saved search created");
+const savedSearchId = ssCreate.data?.search?.id;
+
+const ssAdminDelete = await fetchAPI(`/api/saved-searches/${savedSearchId}`, {
+  method: "DELETE",
+  headers: { Authorization: `Bearer ${adminToken}` },
+});
+await check(
+  ssAdminDelete.status === 404,
+  `Another user cannot delete the saved search (${ssAdminDelete.status})`,
+);
+
+console.log("\n📋 TEST 22: Final DB state");
 const finalResp = await fetchAPI("/api/listings");
 const finalListings = finalResp.data?.listings;
 const finalTotal = finalListings?.length ?? 0;
@@ -309,6 +495,13 @@ for (const l of finalListings || []) {
 console.log(`\n${"═".repeat(50)}`);
 console.log(`\n📊 RESULTS: ${passed} passed, ${failed} failed out of ${passed + failed} tests`);
 
-// Cleanup
+// ── Cleanup ──
+// Remove only the uploads this run created, so the uploads directory is left as
+// it was found. The minimal JPEG fixtures and drivehub.db are left in place:
+// both are currently tracked in git, and the script recreates them on each run.
 server?.kill();
+for (const url of uploadedUrls ?? []) {
+  try { fs.unlinkSync(path.join(UPLOADS, path.basename(url))); } catch { /* already gone */ }
+}
+
 process.exit(failed > 0 ? 1 : 0);

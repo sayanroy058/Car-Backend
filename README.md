@@ -48,6 +48,9 @@ them inline or via a shell export:
 | `PORT`       | `3001`                               | Port the API server listens on       |
 | `JWT_SECRET`  | `drivehub-dev-secret-change-in-production` | Secret used to sign JWT tokens |
 
+> **Set `JWT_SECRET` before exposing this anywhere.** The fallback is a committed
+> constant, so with the default in place anyone can mint a valid admin token.
+
 Example:
 
 ```bash
@@ -134,7 +137,7 @@ Base URL: `http://localhost:3001/api`
 | POST   | `/api/auth/register`  | No   | Register a new user; returns JWT     |
 | POST   | `/api/auth/login`     | No   | Login with email/password; returns JWT|
 | GET    | `/api/auth/me`        | Yes  | Get current user profile             |
-| PATCH  | `/api/auth/profile`   | Yes  | Update name/phone for current user   |
+| PATCH  | `/api/auth/profile`   | Yes  | Update name, phone, avatar, firm name/logo |
 
 Roles: `user` (default) or `agent` (pass `role: "agent"` at registration).
 
@@ -142,40 +145,65 @@ Roles: `user` (default) or `agent` (pass `role: "agent"` at registration).
 
 | Method | Endpoint                    | Auth       | Description                          |
 | ------ | --------------------------- | ---------- | ------------------------------------ |
-| GET    | `/api/listings`             | Optional  | List all listings (newest first)     |
+| GET    | `/api/listings`             | Optional  | List all listings (promoted first)   |
 | GET    | `/api/listings/search`      | Optional  | Filter/search listings by query params |
 | GET    | `/api/listings/:id`         | Optional  | Get a single listing                 |
 | GET    | `/api/listings/:id/similar` | Optional  | Get similar listings (same body type)|
-| POST   | `/api/listings`            | No         | Create a new listing                 |
-| PATCH  | `/api/listings/:id`        | No         | Update listing fields                |
+| POST   | `/api/listings`            | **Yes**    | Create a listing (always `pending_review`) |
+| PATCH  | `/api/listings/:id`        | **Yes**    | Update a listing you own, or any as admin |
 
 Search query params (`GET /api/listings/search`): `q`, `brand`, `body`, `fuel`,
 `trans`, `own`, `state`, `priceMin`, `priceMax`, `yearMin`, `yearMax`, `kmMin`,
 `kmMax`, `sort` (`newest` | `price_low` | `price_high` | `km_low`).
 
+**Write authorisation.** `POST` attributes the listing to the authenticated
+caller (`sellerId` in the body is ignored) and always starts it in
+`pending_review` — a seller cannot self-publish. On `PATCH`, a seller may edit
+their own listing's descriptive and specification fields; `status`, `pricing`,
+`featured` and the `assured*` promotion fields are admin-only and silently
+dropped for everyone else. Editing someone else's listing returns `403`.
+
+**Specifications.** Listings carry real per-variant figures rather than
+placeholders: `displacementCc`, `maxPowerBhp`/`maxPowerRpm`,
+`maxTorqueNm`/`maxTorqueRpm`, `driveTrain`, `mileageKmpl`, `airbags`, `seating`,
+`bootSpaceL`, `fuelTankL`, `groundClearanceMm`, `lengthMm`, `widthMm`,
+`heightMm`, `wheelbaseMm`, plus a `highlights` JSON array of declared features.
+The frontend resolves these from its vehicle catalogue at submission time.
+
+**Registration number (PII).** `registrationNumber` is stored in full but only
+returned in full to the owning seller and to admins. Everyone else receives a
+masked form such as `MH12 •• 1234`.
+
+**Promotion.** `assuredUntil` is an epoch-ms expiry. While it is in the future
+the listing sorts ahead of everything else in `/api/listings` and
+`/api/listings/search`, in every sort order. Clients label these as promoted.
+
 ### Offers (`/api/offers`) — auth required
 
 | Method | Endpoint              | Description                       |
 | ------ | --------------------- | --------------------------------- |
-| GET    | `/api/offers`         | List offers for the current user  |
-| POST   | `/api/offers`         | Create an offer on a listing      |
-| PATCH  | `/api/offers/:id`     | Update offer state/counter amount |
+| GET    | `/api/offers`         | Offers you made, plus offers on your listings |
+| POST   | `/api/offers`         | Create an offer on someone else's listing |
+| PATCH  | `/api/offers/:id`     | Accept/decline/counter — seller or admin only |
 
 ### Bookings (`/api/bookings`) — auth required
 
 | Method | Endpoint              | Description                          |
 | ------ | --------------------- | ------------------------------------ |
-| GET    | `/api/bookings`       | List bookings for the current user   |
+| GET    | `/api/bookings`       | Your bookings (all bookings for admins) |
 | POST   | `/api/bookings`       | Create a booking (test drive/financing) |
-| PATCH  | `/api/bookings/:id`   | Update booking status                |
+| PATCH  | `/api/bookings/:id`   | Update your own booking, or any as admin |
 
 ### Tickets (`/api/tickets`) — auth required
 
 | Method | Endpoint              | Description                       |
 | ------ | --------------------- | --------------------------------- |
-| GET    | `/api/tickets`        | List support tickets               |
+| GET    | `/api/tickets`        | Your tickets (all tickets for admins) |
 | POST   | `/api/tickets`        | Create a support ticket           |
-| PATCH  | `/api/tickets/:id`    | Update ticket status              |
+| PATCH  | `/api/tickets/:id`    | Edit your own ticket; `status` is admin-only |
+
+Ownership for these resources is always derived from the verified JWT — a
+client-supplied `userId` is ignored.
 
 ### Reviews (`/api/reviews`)
 
@@ -188,34 +216,39 @@ Search query params (`GET /api/listings/search`): `q`, `brand`, `body`, `fuel`,
 
 | Method | Endpoint                       | Description                              |
 | ------ | ------------------------------ | ---------------------------------------- |
-| GET    | `/api/conversations`           | List current user's conversations        |
-| GET    | `/api/conversations/:id`       | Get a conversation with its messages     |
-| POST   | `/api/conversations`           | Start/continue a conversation           |
-| POST   | `/api/conversations/:id/messages` | Send a message in a conversation       |
-| POST   | `/api/conversations/:id/read`  | Mark a conversation as read             |
+| GET    | `/api/conversations`           | Your conversations (all for admins)      |
+| GET    | `/api/conversations/:id`       | Get a conversation you participate in    |
+| POST   | `/api/conversations`           | Start/continue a conversation as buyer   |
+| POST   | `/api/conversations/:id/messages` | Send a message (sender from the token) |
+| POST   | `/api/conversations/:id/read`  | Mark read for the calling user           |
+
+Non-participants receive `403`.
 
 ### Saved Searches (`/api/saved-searches`) — auth required
 
 | Method | Endpoint                       | Description                  |
 | ------ | ------------------------------ | ---------------------------- |
-| GET    | `/api/saved-searches`          | List saved searches          |
+| GET    | `/api/saved-searches`          | Your saved searches          |
 | POST   | `/api/saved-searches`          | Save a search with filters   |
-| DELETE | `/api/saved-searches/:id`      | Delete a saved search        |
+| DELETE | `/api/saved-searches/:id`      | Delete one of your own (404 otherwise) |
 
 ### Wishlist (`/api/wishlist`) — auth required
 
 | Method | Endpoint                 | Description                |
 | ------ | ------------------------ | -------------------------- |
-| GET    | `/api/wishlist`          | List wishlist items        |
-| POST   | `/api/wishlist/:listingId` | Add a listing to wishlist |
+| GET    | `/api/wishlist`          | Your wishlist listing ids  |
+| POST   | `/api/wishlist/:listingId` | Toggle a listing in your wishlist |
 
 ### Uploads (`/api/upload`) — auth required
 
 | Method | Endpoint         | Description                                             |
 | ------ | ---------------- | ------------------------------------------------------- |
-| POST   | `/api/upload`    | Upload 1–20 images (`multipart/form-data`, field `images`). Returns `{ urls, count }`. |
+| POST   | `/api/upload`    | Upload 1–20 images (`multipart/form-data`, field `images`). Returns `{ urls, count, rejected? }`. |
 
 - Allowed extensions: `.jpg`, `.jpeg`, `.png`, `.webp`, `.avif`, `.gif`
+- **Content is verified by magic bytes**, not just the extension or MIME type —
+  a file that isn't really an image is deleted and reported under `rejected`.
+  A request where nothing survives returns `400`.
 - Max file size: 10 MB
 - Max files per request: 20
 - Uploaded files are stored in `server/uploads/` and served at `/uploads/<filename>`
@@ -254,18 +287,33 @@ curl -X POST http://localhost:3001/api/upload \
 # 3. Create a listing using the returned image URL
 curl -X POST http://localhost:3001/api/listings \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "sellerName":"Jane",
-    "brand":"Toyota","model":"Innova","year":2020,
-    "fuelType":"Petrol","transmission":"Manual","kmDriven":35000,
-    "ownership":"1st","registrationState":"KA","registrationCity":"Bengaluru",
+    "brand":"Hyundai","model":"Venue","variant":"1.5 CRDi SX MT",
+    "year":2022,"registrationYear":2022,
+    "fuelType":"Diesel","transmission":"Manual","kmDriven":35000,
+    "ownership":"1st Owner","registrationNumber":"KA05MH1234",
+    "registrationState":"Karnataka","registrationCity":"Bengaluru",
     "insuranceStatus":"Active","roadTaxStatus":"Paid",
-    "serviceHistory":"Full","accidentHistory":"None",
+    "serviceHistory":"Complete dealer history","accidentHistory":"No accidents",
     "keys":2,"exteriorCondition":"Good","interiorCondition":"Good",
     "engineCondition":"Good","tireCondition":"Good","batteryCondition":"Good",
     "expectedPrice":1200000,"preferredContactTime":"Evenings",
-    "bodyType":"SUV","images":["/uploads/car.jpg"]
+    "bodyType":"Compact SUV","images":["/uploads/car.jpg"],
+    "displacementCc":1493,"maxPowerBhp":114,"maxPowerRpm":4000,
+    "maxTorqueNm":250,"maxTorqueRpm":1500,"driveTrain":"FWD",
+    "mileageKmpl":23.4,"airbags":6,"seating":5,
+    "bootSpaceL":350,"fuelTankL":45,
+    "highlights":["Sunroof","Apple CarPlay"]
   }'
+
+# The listing is created as pending_review and attributed to $TOKEN's user.
+# An admin publishes it separately:
+#   curl -X PATCH http://localhost:3001/api/listings/<id> \
+#     -H "Content-Type: application/json" \
+#     -H "Authorization: Bearer $ADMIN_TOKEN" \
+#     -d '{"status":"listed"}'
 
 # 4. Fetch listings
 curl http://localhost:3001/api/listings
@@ -277,8 +325,13 @@ curl http://localhost:3001/api/listings
 
 ### End-to-end test
 
-The E2E test boots the server, registers a user, logs in, uploads images,
-creates a listing, and verifies the database:
+The E2E test boots the server against a fresh database and exercises the API
+end to end: registration, login, image upload, listing creation, search, and the
+authorisation rules — anonymous writes are rejected, sellers cannot self-publish
+or self-promote, cross-user edits return `403`, registration numbers are masked
+for other viewers, specification columns round-trip, non-image uploads are
+rejected by content sniffing, and the wishlist and saved searches are scoped to
+their owner.
 
 ```bash
 npm run test:e2e
@@ -305,8 +358,11 @@ external setup is needed.
     ├── seed.js                 # Sample data seeding
     ├── middleware/
     │   └── auth.js             # requireAuth / optionalAuth JWT middleware
+    ├── lib/
+    │   └── registration.js     # Registration-number masking & validation
     ├── migrations/
-    │   └── 001_initial_schema.sql
+    │   ├── 001_initial_schema.sql
+    │   └── 002_vehicle_specs.sql  # Specs, registration no., promotion, profile
     ├── routes/
     │   ├── auth.js
     │   ├── bookings.js
