@@ -36,7 +36,9 @@ router.post("/login", (req, res) => {
 
   const db = getDb();
   const row = db
-    .prepare("SELECT id, name, email, phone, role, password FROM users WHERE email = ?")
+    .prepare(
+      "SELECT id, name, email, phone, role, password, avatarUrl, firmName, firmLogoUrl FROM users WHERE email = ?",
+    )
     .get(email);
 
   if (!row) {
@@ -56,6 +58,9 @@ router.post("/login", (req, res) => {
     email: row.email,
     phone: row.phone,
     role: row.role,
+    avatarUrl: row.avatarUrl,
+    firmName: row.firmName,
+    firmLogoUrl: row.firmLogoUrl,
   };
 
   const token = signToken(user);
@@ -107,7 +112,9 @@ router.get("/me", (req, res) => {
 
   const db = getDb();
   const row = db
-    .prepare("SELECT id, name, email, phone, role FROM users WHERE id = ?")
+    .prepare(
+      "SELECT id, name, email, phone, role, avatarUrl, firmName, firmLogoUrl FROM users WHERE id = ?",
+    )
     .get(userId);
 
   if (!row) {
@@ -126,14 +133,30 @@ router.patch("/profile", (req, res) => {
     return;
   }
 
-  const { name, phone } = req.body;
+  const { name, phone, avatarUrl, firmName, firmLogoUrl } = req.body;
   const db = getDb();
 
-  if (name) db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, userId);
-  if (phone !== undefined) db.prepare("UPDATE users SET phone = ? WHERE id = ?").run(phone, userId);
+  // Only these columns are user-editable — role and email are not.
+  const updates = { name, phone, avatarUrl, firmName, firmLogoUrl };
+  const sets = [];
+  const params = [];
+  for (const [column, value] of Object.entries(updates)) {
+    if (value === undefined) continue;
+    // `name` is required, so ignore an attempt to blank it.
+    if (column === "name" && !String(value).trim()) continue;
+    sets.push(`${column} = ?`);
+    params.push(value === "" ? null : value);
+  }
+
+  if (sets.length) {
+    params.push(userId);
+    db.prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`).run(...params);
+  }
 
   const row = db
-    .prepare("SELECT id, name, email, phone, role FROM users WHERE id = ?")
+    .prepare(
+      "SELECT id, name, email, phone, role, avatarUrl, firmName, firmLogoUrl FROM users WHERE id = ?",
+    )
     .get(userId);
 
   res.json({ user: row });

@@ -3,13 +3,12 @@ import { getDb } from "../db.js";
 
 const router = Router();
 
-// GET /api/saved-searches
+// GET /api/saved-searches — the caller's saved searches.
 router.get("/", (req, res) => {
   const db = getDb();
-  const userId = req.query.userId;
-  const rows = userId
-    ? db.prepare("SELECT * FROM saved_searches WHERE userId = ? ORDER BY createdAt DESC").all(userId)
-    : db.prepare("SELECT * FROM saved_searches ORDER BY createdAt DESC").all();
+  const rows = db
+    .prepare("SELECT * FROM saved_searches WHERE userId = ? ORDER BY createdAt DESC")
+    .all(req.userId);
 
   const searches = rows.map((r) => ({
     ...r,
@@ -22,7 +21,7 @@ router.get("/", (req, res) => {
 router.post("/", (req, res) => {
   const db = getDb();
   const id = `ss-${Date.now()}`;
-  const { userId, name, filters } = req.body;
+  const { name, filters } = req.body;
 
   if (!name) {
     res.status(400).json({ error: "name is required" });
@@ -31,17 +30,26 @@ router.post("/", (req, res) => {
 
   db.prepare(
     "INSERT INTO saved_searches (id, userId, name, filters, createdAt) VALUES (?, ?, ?, ?, ?)"
-  ).run(id, userId ?? null, name, JSON.stringify(filters ?? {}), Date.now());
+  ).run(id, req.userId, name, JSON.stringify(filters ?? {}), Date.now());
 
   const row = db.prepare("SELECT * FROM saved_searches WHERE id = ?").get(id);
   res.status(201).json({ search: { ...row, filters: JSON.parse(row.filters) } });
 });
 
-// DELETE /api/saved-searches/:id
+// DELETE /api/saved-searches/:id — scoped to the caller so one user cannot
+// delete another's saved search.
 router.delete("/:id", (req, res) => {
   const db = getDb();
-  db.prepare("DELETE FROM saved_searches WHERE id = ?").run(req.params.id);
+  const result = db
+    .prepare("DELETE FROM saved_searches WHERE id = ? AND userId = ?")
+    .run(req.params.id, req.userId);
+
+  if (result.changes === 0) {
+    res.status(404).json({ error: "Saved search not found" });
+    return;
+  }
   res.json({ success: true });
 });
 
 export default router;
+

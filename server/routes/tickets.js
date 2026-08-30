@@ -3,20 +3,19 @@ import { getDb } from "../db.js";
 
 const router = Router();
 
-// GET /api/tickets
+// GET /api/tickets — the caller's tickets; admins see all.
 router.get("/", (req, res) => {
   const db = getDb();
-  const userId = req.query.userId;
-  const userEmail = req.query.email;
-
-  let rows;
-  if (userId) {
-    rows = db.prepare("SELECT * FROM tickets WHERE userId = ? OR email = (SELECT email FROM users WHERE id = ?) ORDER BY createdAt DESC").all(userId, userId);
-  } else if (userEmail) {
-    rows = db.prepare("SELECT * FROM tickets WHERE email = ? ORDER BY createdAt DESC").all(userEmail);
-  } else {
-    rows = db.prepare("SELECT * FROM tickets ORDER BY createdAt DESC").all();
-  }
+  const rows =
+    req.userRole === "admin"
+      ? db.prepare("SELECT * FROM tickets ORDER BY createdAt DESC").all()
+      : db
+          .prepare(
+            `SELECT * FROM tickets
+             WHERE userId = ? OR email = (SELECT email FROM users WHERE id = ?)
+             ORDER BY createdAt DESC`,
+          )
+          .all(req.userId, req.userId);
   res.json({ tickets: rows });
 });
 
@@ -24,7 +23,7 @@ router.get("/", (req, res) => {
 router.post("/", (req, res) => {
   const db = getDb();
   const id = `t-${Date.now()}`;
-  const { userId, name, email, subject, category, message } = req.body;
+  const { name, email, subject, category, message } = req.body;
 
   if (!name || !email || !subject || !category || !message) {
     res.status(400).json({ error: "All fields are required" });
@@ -33,13 +32,14 @@ router.post("/", (req, res) => {
 
   db.prepare(
     "INSERT INTO tickets (id, userId, name, email, subject, category, message, status, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?)"
-  ).run(id, userId ?? null, name, email, subject, category, message, Date.now());
+  ).run(id, req.userId, name, email, subject, category, message, Date.now());
 
   const row = db.prepare("SELECT * FROM tickets WHERE id = ?").get(id);
   res.status(201).json({ ticket: row });
 });
 
-// PATCH /api/tickets/:id
+// PATCH /api/tickets/:id — the reporter may edit their own ticket's content;
+// only an admin may change its status.
 router.patch("/:id", (req, res) => {
   const db = getDb();
   const existing = db.prepare("SELECT * FROM tickets WHERE id = ?").get(req.params.id);
@@ -48,11 +48,24 @@ router.patch("/:id", (req, res) => {
     return;
   }
 
+  const isAdmin = req.userRole === "admin";
+  if (!isAdmin && existing.userId !== req.userId) {
+    res.status(403).json({ error: "You can only modify your own tickets" });
+    return;
+  }
+
   const { status, subject, category, message } = req.body;
   const sets = [];
   const params = [];
 
-  if (status) { sets.push("status = ?"); params.push(status); }
+  if (status) {
+    if (!isAdmin) {
+      res.status(403).json({ error: "Only an admin can change ticket status" });
+      return;
+    }
+    sets.push("status = ?");
+    params.push(status);
+  }
   if (subject) { sets.push("subject = ?"); params.push(subject); }
   if (category) { sets.push("category = ?"); params.push(category); }
   if (message) { sets.push("message = ?"); params.push(message); }

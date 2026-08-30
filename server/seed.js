@@ -290,6 +290,150 @@ const CARS = [
   },
 ];
 
+/**
+ * Real specifications for the seeded cars, keyed by "brand_model".
+ * Mirrors the frontend catalogue (src/lib/catalogue.ts) so demo listings carry
+ * genuine engine, performance and dimension figures instead of the hardcoded
+ * placeholders the detail page previously rendered.
+ *
+ * dims: [length, width, height, wheelbase, groundClearance] in mm.
+ */
+const CAR_SPECS = {
+  "Tesla_Model 3": {
+    displacementCc: 0, maxPowerBhp: 434, maxPowerRpm: 0, maxTorqueNm: 493, maxTorqueRpm: 0,
+    driveTrain: "AWD", mileageKmpl: null, airbags: 8, seating: 5, bootSpaceL: 594,
+    fuelTankL: null, dims: [4720, 1849, 1441, 2875, 138],
+  },
+  "BMW_M340i": {
+    displacementCc: 2998, maxPowerBhp: 382, maxPowerRpm: 5800, maxTorqueNm: 500, maxTorqueRpm: 1800,
+    driveTrain: "AWD", mileageKmpl: 12.5, airbags: 6, seating: 5, bootSpaceL: 480,
+    fuelTankL: 59, dims: [4713, 1827, 1440, 2851, 165],
+  },
+  "Porsche_Macan": {
+    displacementCc: 2894, maxPowerBhp: 375, maxPowerRpm: 5400, maxTorqueNm: 520, maxTorqueRpm: 1800,
+    driveTrain: "AWD", mileageKmpl: 10.0, airbags: 6, seating: 5, bootSpaceL: 488,
+    fuelTankL: 65, dims: [4726, 1922, 1621, 2807, 190],
+  },
+  "Mercedes-Benz_C300": {
+    displacementCc: 1999, maxPowerBhp: 254, maxPowerRpm: 5800, maxTorqueNm: 400, maxTorqueRpm: 2000,
+    driveTrain: "RWD", mileageKmpl: 14.5, airbags: 7, seating: 5, bootSpaceL: 455,
+    fuelTankL: 66, dims: [4751, 1820, 1438, 2865, 145],
+  },
+  "Audi_Q5": {
+    displacementCc: 1984, maxPowerBhp: 249, maxPowerRpm: 5000, maxTorqueNm: 370, maxTorqueRpm: 1600,
+    driveTrain: "AWD", mileageKmpl: 12.5, airbags: 8, seating: 5, bootSpaceL: 550,
+    fuelTankL: 70, dims: [4682, 1893, 1663, 2819, 195],
+  },
+  "Toyota_Camry": {
+    displacementCc: 2487, maxPowerBhp: 227, maxPowerRpm: 5700, maxTorqueNm: 221, maxTorqueRpm: 3600,
+    driveTrain: "FWD", mileageKmpl: 25.49, airbags: 9, seating: 5, bootSpaceL: 524,
+    fuelTankL: 50, dims: [4885, 1840, 1445, 2825, 145],
+  },
+  "Honda_Civic": {
+    displacementCc: 1799, maxPowerBhp: 139, maxPowerRpm: 6500, maxTorqueNm: 174, maxTorqueRpm: 4300,
+    driveTrain: "FWD", mileageKmpl: 16.5, airbags: 6, seating: 5, bootSpaceL: 430,
+    fuelTankL: 47, dims: [4656, 1799, 1433, 2700, 171],
+  },
+  "Polestar_2": {
+    displacementCc: 0, maxPowerBhp: 421, maxPowerRpm: 0, maxTorqueNm: 740, maxTorqueRpm: 0,
+    driveTrain: "AWD", mileageKmpl: null, airbags: 8, seating: 5, bootSpaceL: 405,
+    fuelTankL: null, dims: [4606, 1859, 1479, 2735, 151],
+  },
+  "Volvo_XC60": {
+    displacementCc: 1969, maxPowerBhp: 449, maxPowerRpm: 6000, maxTorqueNm: 709, maxTorqueRpm: 3000,
+    driveTrain: "AWD", mileageKmpl: 18.0, airbags: 7, seating: 5, bootSpaceL: 483,
+    fuelTankL: 71, dims: [4708, 1902, 1658, 2865, 216],
+  },
+  "Lexus_RX 350": {
+    displacementCc: 2393, maxPowerBhp: 271, maxPowerRpm: 6000, maxTorqueNm: 430, maxTorqueRpm: 1700,
+    driveTrain: "AWD", mileageKmpl: 12.0, airbags: 8, seating: 5, bootSpaceL: 461,
+    fuelTankL: 65, dims: [4890, 1920, 1695, 2850, 200],
+  },
+  "Hyundai_Ioniq 5": {
+    displacementCc: 0, maxPowerBhp: 302, maxPowerRpm: 0, maxTorqueNm: 605, maxTorqueRpm: 0,
+    driveTrain: "AWD", mileageKmpl: null, airbags: 6, seating: 5, bootSpaceL: 527,
+    fuelTankL: null, dims: [4635, 1890, 1625, 3000, 163],
+  },
+  "Kia_EV6": {
+    displacementCc: 0, maxPowerBhp: 320, maxPowerRpm: 0, maxTorqueNm: 605, maxTorqueRpm: 0,
+    driveTrain: "AWD", mileageKmpl: null, airbags: 6, seating: 5, bootSpaceL: 490,
+    fuelTankL: null, dims: [4695, 1890, 1550, 2900, 158],
+  },
+  "Mazda_CX-5": {
+    displacementCc: 2488, maxPowerBhp: 227, maxPowerRpm: 5000, maxTorqueNm: 420, maxTorqueRpm: 2000,
+    driveTrain: "AWD", mileageKmpl: 11.5, airbags: 6, seating: 5, bootSpaceL: 442,
+    fuelTankL: 58, dims: [4575, 1845, 1680, 2700, 193],
+  },
+  "Volkswagen_Golf GTI": {
+    displacementCc: 1984, maxPowerBhp: 242, maxPowerRpm: 5000, maxTorqueNm: 370, maxTorqueRpm: 1600,
+    driveTrain: "FWD", mileageKmpl: 14.0, airbags: 6, seating: 5, bootSpaceL: 374,
+    fuelTankL: 50, dims: [4287, 1789, 1478, 2620, 145],
+  },
+};
+
+/** Feature highlights per body type, so seeded listings show plausible tags. */
+const HIGHLIGHTS_BY_BODY = {
+  Sedan: [
+    "Sunroof", "Apple CarPlay", "Android Auto", "Cruise control",
+    "LED headlamps", "Automatic climate control",
+  ],
+  SUV: [
+    "Panoramic sunroof", "360° surround camera", "Ventilated front seats",
+    "Wireless Apple CarPlay", "Adaptive cruise control", "Roof rails", "LED headlamps",
+  ],
+  "Compact SUV": [
+    "Sunroof", "Reverse parking camera", "Apple CarPlay", "Android Auto",
+    "Automatic climate control", "Alloy wheels",
+  ],
+  Hatchback: [
+    "Touchscreen infotainment", "Apple CarPlay", "Reverse parking camera",
+    "Alloy wheels", "Automatic climate control",
+  ],
+  "MUV/MPV": [
+    "Rear AC vents", "Touchscreen infotainment", "Reverse parking camera",
+    "Cruise control", "60:40 split rear seat",
+  ],
+};
+
+/**
+ * Resolves the spec columns for a seeded car. Unknown cars get nulls rather
+ * than invented figures — the UI renders an em dash for missing values.
+ */
+function specsFor(brand, model, bodyType) {
+  const s = CAR_SPECS[`${brand}_${model}`];
+  const highlights = JSON.stringify(HIGHLIGHTS_BY_BODY[bodyType] ?? []);
+  if (!s) {
+    return {
+      displacementCc: null, maxPowerBhp: null, maxPowerRpm: null, maxTorqueNm: null,
+      maxTorqueRpm: null, driveTrain: null, mileageKmpl: null, airbags: null,
+      seating: null, bootSpaceL: null, fuelTankL: null, groundClearanceMm: null,
+      lengthMm: null, widthMm: null, heightMm: null, wheelbaseMm: null, highlights,
+    };
+  }
+  const [lengthMm, widthMm, heightMm, wheelbaseMm, groundClearanceMm] = s.dims;
+  return {
+    displacementCc: s.displacementCc, maxPowerBhp: s.maxPowerBhp, maxPowerRpm: s.maxPowerRpm,
+    maxTorqueNm: s.maxTorqueNm, maxTorqueRpm: s.maxTorqueRpm, driveTrain: s.driveTrain,
+    mileageKmpl: s.mileageKmpl, airbags: s.airbags, seating: s.seating,
+    bootSpaceL: s.bootSpaceL, fuelTankL: s.fuelTankL, groundClearanceMm,
+    lengthMm, widthMm, heightMm, wheelbaseMm, highlights,
+  };
+}
+
+/** Registration numbers matching each seeded car's registration state. */
+const STATE_CODES = {
+  Maharashtra: "MH", Karnataka: "KA", Delhi: "DL", "Tamil Nadu": "TN",
+  Telangana: "TS", Gujarat: "GJ", "West Bengal": "WB", Haryana: "HR",
+};
+
+function registrationNumberFor(state, i) {
+  const code = STATE_CODES[state] ?? "MH";
+  const district = String((i % 40) + 1).padStart(2, "0");
+  const series = String.fromCharCode(65 + (i % 26)) + String.fromCharCode(65 + ((i + 7) % 26));
+  const number = String(1000 + i * 137).slice(0, 4);
+  return `${code}${district}${series}${number}`;
+}
+
 export function seed() {
   const db = getDb();
 
@@ -311,16 +455,22 @@ export function seed() {
   const insertListing = db.prepare(`
     INSERT INTO listings (id, sellerId, sellerName, sellerEmail, sellerPhone, brand, model, variant,
       year, registrationYear, fuelType, transmission, kmDriven, ownership, registrationState,
-      registrationCity, vin, insuranceStatus, roadTaxStatus, serviceHistory, accidentHistory,
-      keys, exteriorCondition, interiorCondition, engineCondition, tireCondition, batteryCondition,
-      defects, modifications, description, expectedPrice, address, preferredContactTime, bodyType,
-      images, status, pricing, createdAt, views, featured)
+      registrationCity, vin, registrationNumber, insuranceStatus, roadTaxStatus, serviceHistory,
+      accidentHistory, keys, exteriorCondition, interiorCondition, engineCondition, tireCondition,
+      batteryCondition, defects, modifications, description, expectedPrice, address,
+      preferredContactTime, bodyType, images, status, pricing, createdAt, views, featured,
+      displacementCc, maxPowerBhp, maxPowerRpm, maxTorqueNm, maxTorqueRpm, driveTrain, mileageKmpl,
+      seating, bootSpaceL, fuelTankL, groundClearanceMm, lengthMm, widthMm, heightMm, wheelbaseMm,
+      airbags, highlights)
     VALUES (@id, @sellerId, @sellerName, @sellerEmail, @sellerPhone, @brand, @model, @variant,
       @year, @registrationYear, @fuelType, @transmission, @kmDriven, @ownership, @registrationState,
-      @registrationCity, @vin, @insuranceStatus, @roadTaxStatus, @serviceHistory, @accidentHistory,
-      @keys, @exteriorCondition, @interiorCondition, @engineCondition, @tireCondition, @batteryCondition,
-      @defects, @modifications, @description, @expectedPrice, @address, @preferredContactTime, @bodyType,
-      @images, @status, @pricing, @createdAt, @views, @featured)
+      @registrationCity, @vin, @registrationNumber, @insuranceStatus, @roadTaxStatus, @serviceHistory,
+      @accidentHistory, @keys, @exteriorCondition, @interiorCondition, @engineCondition, @tireCondition,
+      @batteryCondition, @defects, @modifications, @description, @expectedPrice, @address,
+      @preferredContactTime, @bodyType, @images, @status, @pricing, @createdAt, @views, @featured,
+      @displacementCc, @maxPowerBhp, @maxPowerRpm, @maxTorqueNm, @maxTorqueRpm, @driveTrain, @mileageKmpl,
+      @seating, @bootSpaceL, @fuelTankL, @groundClearanceMm, @lengthMm, @widthMm, @heightMm, @wheelbaseMm,
+      @airbags, @highlights)
   `);
 
   const seedListings = db.transaction(() => {
@@ -374,6 +524,10 @@ export function seed() {
             }
           : null;
 
+      // Keep the state, city and registration number mutually consistent.
+      const seedState = STATES[i % STATES.length];
+      const specs = specsFor(c.brand, c.model, c.bodyType);
+
       insertListing.run({
         id: `seed-${i + 1}`,
         sellerId: `seed-seller-${i + 1}`,
@@ -391,8 +545,10 @@ export function seed() {
         transmission: c.transmission,
         kmDriven: randInt(8000, 75000),
         ownership: rand(OWNERSHIP),
-        registrationState: rand(STATES),
+        registrationState: seedState,
         registrationCity: rand(CITIES),
+        registrationNumber: registrationNumberFor(seedState, i),
+        ...specs,
         vin: `VIN${(1000000 + i * 37).toString().padStart(11, "0")}`,
         insuranceStatus: rand(["Active", "Expired", "Expires soon"]),
         roadTaxStatus: "Paid",

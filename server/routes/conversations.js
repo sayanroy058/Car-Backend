@@ -3,20 +3,18 @@ import { getDb } from "../db.js";
 
 const router = Router();
 
-// GET /api/conversations
+// GET /api/conversations — the caller's conversations; admins see all.
 router.get("/", (req, res) => {
   const db = getDb();
-  const all = req.query.all === "true";
-  const userId = req.query.userId;
+  const isAdmin = req.userRole === "admin";
 
-  if (!all && !userId) {
-    res.status(400).json({ error: "userId query parameter required" });
-    return;
-  }
-
-  const rows = all
+  const rows = isAdmin
     ? db.prepare("SELECT * FROM conversations ORDER BY createdAt DESC").all()
-    : db.prepare("SELECT * FROM conversations WHERE buyerId = ? ORDER BY createdAt DESC").all(userId);
+    : db
+        .prepare(
+          "SELECT * FROM conversations WHERE buyerId = ? OR sellerId = ? ORDER BY createdAt DESC",
+        )
+        .all(req.userId, req.userId);
 
   const conversations = rows.map((c) => {
     const messages = db.prepare("SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt ASC").all(c.id);
@@ -27,6 +25,15 @@ router.get("/", (req, res) => {
   res.json({ conversations });
 });
 
+/** True when the caller is a participant in the conversation, or an admin. */
+function canAccess(req, conversation) {
+  return (
+    req.userRole === "admin" ||
+    conversation.buyerId === req.userId ||
+    conversation.sellerId === req.userId
+  );
+}
+
 // GET /api/conversations/:id
 router.get("/:id", (req, res) => {
   const db = getDb();
@@ -35,26 +42,30 @@ router.get("/:id", (req, res) => {
     res.status(404).json({ error: "Conversation not found" });
     return;
   }
+  if (!canAccess(req, c)) {
+    res.status(403).json({ error: "Not a participant in this conversation" });
+    return;
+  }
 
   const messages = db.prepare("SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt ASC").all(c.id);
   const lastReadAt = c.lastReadAt ? JSON.parse(c.lastReadAt) : undefined;
   res.json({ conversation: { ...c, messages, lastReadAt } });
 });
 
-// POST /api/conversations
+// POST /api/conversations — the caller is always the buyer.
 router.post("/", (req, res) => {
   const db = getDb();
-  const { listingId, buyerId, sellerId, sellerName, listingTitle } = req.body;
+  const { listingId, sellerId, sellerName, listingTitle } = req.body;
 
-  if (!listingId || !buyerId || !sellerId) {
-    res.status(400).json({ error: "listingId, buyerId, and sellerId are required" });
+  if (!listingId || !sellerId) {
+    res.status(400).json({ error: "listingId and sellerId are required" });
     return;
   }
 
-  // Check for existing conversation
+  // Reuse the existing thread for this buyer/listing pair.
   const existing = db.prepare(
     "SELECT * FROM conversations WHERE listingId = ? AND buyerId = ?"
-  ).get(listingId, buyerId);
+  ).get(listingId, req.userId);
 
   if (existing) {
     const messages = db.prepare("SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt ASC").all(existing.id);
@@ -65,47 +76,61 @@ router.post("/", (req, res) => {
   const id = `c-${Date.now()}`;
   db.prepare(
     "INSERT INTO conversations (id, listingId, buyerId, sellerId, sellerName, listingTitle, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(id, listingId, buyerId, sellerId, sellerName ?? "", listingTitle ?? "", Date.now());
+  ).run(id, listingId, req.userId, sellerId, sellerName ?? "", listingTitle ?? "", Date.now());
 
   const c = db.prepare("SELECT * FROM conversations WHERE id = ?").get(id);
   res.status(201).json({ conversation: { ...c, messages: [] } });
 });
 
-// POST /api/conversations/:id/messages
+// POST /api/conversations/:id/messages — sender is the authenticated caller.
 router.post("/:id/messages", (req, res) => {
   const db = getDb();
   const conversationId = req.params.id;
-  const { senderId, senderName, text, mine } = req.body;
+  const { senderName, text } = req.body;
+
+  if (!text || !String(text).trim()) {
+    res.status(400).json({ error: "Message text is required" });
+    return;
+  }
 
   const c = db.prepare("SELECT * FROM conversations WHERE id = ?").get(conversationId);
   if (!c) {
     res.status(404).json({ error: "Conversation not found" });
     return;
   }
+  if (!canAccess(req, c)) {
+    res.status(403).json({ error: "Not a participant in this conversation" });
+    return;
+  }
 
   const id = `m-${Date.now()}`;
+  // `mine` is a per-viewer notion, so it is not persisted from the client;
+  // clients compare senderId against the signed-in user instead.
   db.prepare(
-    "INSERT INTO messages (id, conversationId, senderId, senderName, text, createdAt, mine) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(id, conversationId, senderId ?? "", senderName ?? "", text, Date.now(), mine ? 1 : 0);
+    "INSERT INTO messages (id, conversationId, senderId, senderName, text, createdAt, mine) VALUES (?, ?, ?, ?, ?, ?, 0)"
+  ).run(id, conversationId, req.userId, senderName ?? "", text, Date.now());
 
   const message = db.prepare("SELECT * FROM messages WHERE id = ?").get(id);
   res.status(201).json({ message });
 });
 
-// POST /api/conversations/:id/read
+// POST /api/conversations/:id/read — marks read for the calling user only.
 router.post("/:id/read", (req, res) => {
   const db = getDb();
   const conversationId = req.params.id;
-  const userId = req.body.userId;
 
   const c = db.prepare("SELECT * FROM conversations WHERE id = ?").get(conversationId);
   if (!c) {
     res.status(404).json({ error: "Conversation not found" });
     return;
   }
+  if (!canAccess(req, c)) {
+    res.status(403).json({ error: "Not a participant in this conversation" });
+    return;
+  }
 
   const lastReadAt = c.lastReadAt ? JSON.parse(c.lastReadAt) : {};
-  lastReadAt[userId] = Date.now();
+  lastReadAt[req.userId] = Date.now();
 
   db.prepare("UPDATE conversations SET lastReadAt = ? WHERE id = ?").run(JSON.stringify(lastReadAt), conversationId);
   res.json({ success: true });
