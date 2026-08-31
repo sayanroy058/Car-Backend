@@ -1,0 +1,14 @@
+node_modules
+.git
+.gitignore
+*.log
+.DS_Store
+.idea
+.vscode
+# Keep the running, local-only SQLite file out of the image (fresh copy on build)
+drivehub.db
+drivehub.db-shm
+drivehub.db-wal
+# User-generated uploads stay out; keep the .gitkeep placeholder
+server/uploads/*
+!server/uploads/.gitkeep
