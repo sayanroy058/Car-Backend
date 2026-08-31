@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "echo 'No build step required for Express.js'",
     "dev:server": "node --watch server/server.js",
     "server": "node server/server.js",
     "migrate": "node server/migrate.js",
